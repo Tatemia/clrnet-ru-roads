@@ -18,6 +18,7 @@ from unlanedet.engine import (
 from unlanedet.engine.defaults import create_ddp_model
 from unlanedet.data.transform import Preprocess
 from unlanedet.model.module.core.lane import Lane
+from unlanedet.utils.frame_resize import fit_frame_to_config
 
 def mkdir(path):
     sub_dir = os.path.dirname(path)
@@ -44,6 +45,7 @@ def imshow_lanes(img, lanes, show=False, out_file=None):
 
 def preprocess(img_path,cfg,processes):
     ori_img = cv2.imread(img_path)
+    ori_img = fit_frame_to_config(ori_img, cfg, source_name=img_path)
 #    import pdb;pdb.set_trace()
     img = ori_img[cfg.param_config.cut_height:, :, :].astype(np.float32)
     vis_img = copy(img)

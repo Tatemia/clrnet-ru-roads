@@ -1,3 +1,68 @@
+# clrnet-ru-roads (форк UnLanedet)
+
+Форк [UnLanedet](https://github.com/zkyntu/UnLanedet) с моделью CLRNet (ResNet-34), дообученной на наборе данных
+российских дорог с синтетической аугментацией погоды (туман, дождь, блик) и переведенной в TensorRT FP16.
+Материалы к статье «Исследование влияния синтетической аугментации на устойчивость алгоритмов детекции
+дорожной разметки к погодным искажениям».
+
+*A fork of UnLanedet with CLRNet (ResNet-34) fine-tuned on Russian roads with synthetic weather augmentation
+and converted to TensorRT FP16.*
+
+### Веса
+
+Веса не хранятся в git, они опубликованы в [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0):
+
+| Файл | Формат |
+|---|---|
+| `clrnet_r34_ru_roads.pth` | PyTorch, исходные веса дообученной модели |
+| `clrnet_r34_ru_roads_fp16.onnx` | ONNX: backbone и FPN в FP16, голова в FP32 (для сборки движка TensorRT) |
+
+Движок TensorRT привязан к видеокарте и версии TensorRT, поэтому собирается на месте из чекпоинта:
+
+```bash
+python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --out-dir checkpoints/tensorrt --precisions fp16
+```
+
+### Результаты (валидационная выборка: 108 кадров, 3 сцены, протокол оценки CULane)
+
+| Условие | F1, исходная модель (CULane) | F1, дообученная (TensorRT FP16) |
+|---|---|---|
+| Без искажений | 0,789 | 0,916 |
+| Туман (умеренный) | 0,800 | 0,936 |
+| Дождь (умеренный) | 0,166 | 0,922 |
+| Блик (умеренный) | 0,787 | 0,913 |
+
+Время обработки кадра (RTX 3080, batch 1): 15,7 мс у исходной модели (PyTorch FP32) и 6,0 мс у дообученной (TensorRT FP16).
+Искажения синтетические, поэтому результаты не гарантируют такого же качества в реальную непогоду.
+
+### Запуск
+
+Установка — как у UnLanedet ([doc/install.md](doc/install.md)). Детекция на изображениях и видео с
+временным сглаживанием фильтром Калмана:
+
+```bash
+python tools/detect.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --img "images/*.jpg" --savedir vis
+python tools/track_lanes_video.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --video input.mp4 --out compare.mp4
+```
+
+### Что добавлено и изменено относительно UnLanedet
+
+- `unlanedet/data/transform/weather.py`, `weather_imgaug.py` — синтез тумана (закон Кошмидера), дождя и блика,
+  аугментеры imgaug; подключаются в `config/clrnet/resnet34_culane_finetune.py` (`weather_aug_p`).
+- `unlanedet/tracking/lane_tracker.py`, `tools/track_lanes_video.py` — трекинг полос фильтром Калмана.
+- `tools/export_tensorrt.py`, `unlanedet/utils/trt_model.py` — экспорт в ONNX/TensorRT и запуск движка.
+- `tools/compare_models.py`, `tools/eval_weather_robustness.py`, `tools/benchmark_speed.py` — оценка
+  устойчивости к искажениям и замер скорости.
+- `tools/cvat_*.py`, `tools/predict_to_cvat.py`, `tools/gen_culane_*.py`, `tools/extract_video_frames.py` —
+  подготовка и разметка собственного набора данных в формате CULane.
+- Изменены файлы UnLanedet: `unlanedet/model/CLRNet/clr_head.py` (ускорена постобработка),
+  `unlanedet/data/transform/__init__.py` (регистрация погодных аугментаций), `tools/detect.py`
+  (подгонка размера кадра под конфиг).
+
+Набор данных российских дорог в репозиторий не входит. Лицензия — Apache 2.0, как у UnLanedet.
+
+---
+
 # UnLanedet
 <font size=4> An advanced lane detection toolbox. UnLanedet contains many advanced lane detection methods to facilitate scientific research and lane detection applications. If you are in China, [gitee](https://gitee.com/zkyseured/UnLanedet) link may be helpful for you.
 

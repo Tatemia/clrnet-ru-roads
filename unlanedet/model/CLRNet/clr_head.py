@@ -10,7 +10,6 @@ from ...layers import Conv2d, get_norm
 from ..module.core.lane import Lane
 from ..module.losses import FocalLoss
 from ..module.head import PlainDecoder
-from ...layers.ops import nms
 
 from .roi_gather import ROIGather,LinearModule
 from .dynamic_assign import assign
@@ -272,45 +271,85 @@ class CLRHead(nn.Module):
 
     def predictions_to_pred(self, predictions):
         '''
-        Convert predictions to internal Lane structure for evaluation.
+        Convert predictions (numpy array or tensor, one row per lane) to internal
+        Lane structure for evaluation.
         '''
-        self.prior_ys = self.prior_ys.to(predictions.device)
-        self.prior_ys = self.prior_ys.double()
+        if isinstance(predictions, torch.Tensor):
+            predictions = predictions.detach().float().cpu().numpy()
+        if not hasattr(self, '_prior_ys_np'):
+            self._prior_ys_np = self.prior_ys.detach().double().cpu().numpy()
+        prior_ys = self._prior_ys_np
         lanes = []
         for lane in predictions:
-            lane_xs = lane[6:]  # normalized value
-            start = min(max(0, int(round(lane[2].item() * self.n_strips))),
+            lane_xs = lane[6:].copy()  # normalized value
+            start = min(max(0, int(round(float(lane[2]) * self.n_strips))),
                         self.n_strips)
-            length = int(round(lane[5].item()))
+            length = int(round(float(lane[5])))
             end = start + length - 1
-            end = min(end, len(self.prior_ys) - 1)
-            # end = label_end
+            end = min(end, len(prior_ys) - 1)
             # if the prediction does not start at the bottom of the image,
             # extend its prediction until the x is outside the image
-            mask = ~((((lane_xs[:start] >= 0.) & (lane_xs[:start] <= 1.)
-                       ).cpu().numpy()[::-1].cumprod()[::-1]).astype(np.bool))
+            mask = ~(((lane_xs[:start] >= 0.) & (lane_xs[:start] <= 1.)
+                      )[::-1].cumprod()[::-1].astype(bool))
             lane_xs[end + 1:] = -2
             lane_xs[:start][mask] = -2
-            lane_ys = self.prior_ys[lane_xs >= 0]
-            lane_xs = lane_xs[lane_xs >= 0]
-            lane_xs = lane_xs.flip(0).double()
-            lane_ys = lane_ys.flip(0)
+            valid = lane_xs >= 0
+            lane_xs = lane_xs[valid][::-1].astype(np.float64)
+            lane_ys = prior_ys[valid][::-1]
 
             lane_ys = (lane_ys * (self.cfg.ori_img_h - self.cfg.cut_height) +
                        self.cfg.cut_height) / self.cfg.ori_img_h
             if len(lane_xs) <= 1:
                 continue
-            points = torch.stack(
-                (lane_xs.reshape(-1, 1), lane_ys.reshape(-1, 1)),
-                dim=1).squeeze(2)
-            lane = Lane(points=points.cpu().numpy(),
-                        metadata={
-                            'start_x': lane[3],
-                            'start_y': lane[2],
-                            'conf': lane[1]
-                        })
-            lanes.append(lane)
+            lanes.append(Lane(points=np.stack((lane_xs, lane_ys), axis=1),
+                              metadata={
+                                  'start_x': float(lane[3]),
+                                  'start_y': float(lane[2]),
+                                  'conf': float(lane[1])
+                              }))
         return lanes
+
+    def lane_nms(self, predictions, scores, overlap, top_k):
+        '''
+        CPU port of the lane NMS CUDA kernel (layers/ops/csrc/nms_kernel.cu), same
+        float32 arithmetic and rounding: greedy by descending score, two lanes are
+        duplicates if their mean x-distance over common rows is below `overlap` px.
+        Returns indices of kept rows.
+        '''
+        boxes = np.concatenate([predictions[:, :4], predictions[:, 5:]], axis=1)
+        boxes[:, 4] *= self.n_strips
+        boxes[:, 5:] *= (self.img_w - 1)
+        n_offsets = boxes.shape[1] - 5
+
+        starts = np.trunc((boxes[:, 2] * np.float32(n_offsets - 1)).astype(np.float64)
+                          + 0.5).astype(np.int64)
+        lengths = boxes[:, 4]
+        ends = np.trunc(((starts.astype(np.float32) + lengths) - np.float32(1)).astype(np.float64)
+                        + 0.5 - ((lengths - np.float32(1)) < 0)).astype(np.int64)
+        threshold = np.float32(overlap)
+
+        def is_duplicate(a, b):
+            start = max(starts[a], starts[b])
+            end = min(ends[a], ends[b], n_offsets - 1)
+            if end < start:
+                return False
+            diff = np.abs(boxes[a, 5 + start:6 + end] - boxes[b, 5 + start:6 + end])
+            dist = np.cumsum(diff, dtype=np.float32)[-1]  # sequential sum, as in the kernel
+            return dist < threshold * np.float32(end - start + 1)
+
+        order = np.argsort(-scores, kind='stable')
+        suppressed = np.zeros(len(order), dtype=bool)
+        keep = []
+        for i in range(len(order)):
+            if suppressed[i]:
+                continue
+            keep.append(order[i])
+            if len(keep) == top_k:
+                break
+            for j in range(i + 1, len(order)):
+                if not suppressed[j] and is_duplicate(order[i], order[j]):
+                    suppressed[j] = True
+        return np.asarray(keep, dtype=np.int64)
     
     def loss(self,
              output,
@@ -420,44 +459,32 @@ class CLRHead(nn.Module):
         '''
         Convert model output to lanes.
         '''
-        softmax = nn.Softmax(dim=1)
+        # After the confidence threshold only a handful of candidates remain, so
+        # thresholding, NMS and decoding run in numpy after a single GPU->CPU copy:
+        # per-lane GPU ops with a sync each cost far more than the math itself.
+        scores_all = F.softmax(output[..., :2], dim=-1)[..., 1:]
+        data = torch.cat([scores_all, output], dim=-1).detach().float().cpu().numpy()
 
+        threshold = self.cfg.test_parameters.conf_threshold
         decoded = []
-        for predictions in output:
-            # filter out the conf lower than conf threshold
-            threshold = self.cfg.test_parameters.conf_threshold
-            scores = softmax(predictions[:, :2])[:, 1]
-            keep_inds = scores >= threshold
-            predictions = predictions[keep_inds]
-            scores = scores[keep_inds]
+        for sample in data:
+            keep_inds = sample[:, 0] >= threshold
+            scores = sample[keep_inds, 0]
+            predictions = sample[keep_inds, 1:]
 
             if predictions.shape[0] == 0:
                 decoded.append([])
                 continue
-            nms_predictions = predictions.detach().clone()
-            nms_predictions = torch.cat(
-                [nms_predictions[..., :4], nms_predictions[..., 5:]], dim=-1)
-            nms_predictions[..., 4] = nms_predictions[..., 4] * self.n_strips
-            nms_predictions[...,
-                            5:] = nms_predictions[..., 5:] * (self.img_w - 1)
 
-            keep, num_to_keep, _ = nms(
-                nms_predictions,
-                scores,
-                overlap=self.cfg.test_parameters.nms_thres,
-                top_k=self.cfg.max_lanes)
-            keep = keep[:num_to_keep]
+            keep = self.lane_nms(predictions, scores,
+                                 overlap=self.cfg.test_parameters.nms_thres,
+                                 top_k=self.cfg.max_lanes)
             predictions = predictions[keep]
-
-            if predictions.shape[0] == 0:
-                decoded.append([])
-                continue
-
-            predictions[:, 5] = torch.round(predictions[:, 5] * self.n_strips)
+            predictions[:, 5] = np.round(predictions[:, 5] * self.n_strips)
             if as_lanes:
                 pred = self.predictions_to_pred(predictions)
             else:
-                pred = predictions
+                pred = torch.from_numpy(predictions).to(output.device)
             decoded.append(pred)
 
         return decoded
