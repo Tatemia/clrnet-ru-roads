@@ -1,0 +1,4 @@
+# Экспорт в ONNX/TensorRT и запуск движка (tools/export_tensorrt.py, unlanedet/utils/trt_model.py).
+# Нужен драйвер NVIDIA с поддержкой CUDA 12.
+onnx==1.19.1
+tensorrt-cu12==11.3.0.99

@@ -1,0 +1,2 @@
+# Веб-интерфейс tools/gradio_app.py
+gradio==4.44.1

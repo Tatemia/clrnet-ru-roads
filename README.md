@@ -55,15 +55,37 @@ python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkp
 Время обработки кадра (RTX 3080, batch 1): 15,7 мс у исходной модели (PyTorch FP32) и 6,0 мс у дообученной (TensorRT FP16).
 Искажения синтетические, поэтому результаты не гарантируют такого же качества в реальную непогоду.
 
+### Установка
+
+Проверено на Linux (WSL2), Python 3.9, PyTorch 2.3.1 + CUDA 12.1, RTX 3080. Компилятор CUDA нужен для сборки
+операции NMS.
+
+```bash
+conda create -n unlanedet python=3.9 -y
+conda activate unlanedet
+conda install -c nvidia/label/cuda-12.1.0 cuda-toolkit -y
+pip install torch==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements.txt
+pip install -r requirements-tensorrt.txt   # по желанию: экспорт и запуск в TensorRT
+pip install -r requirements-app.txt        # по желанию: веб-интерфейс Gradio
+pip install numpy==1.23.1                  # последним шагом: код UnLanedet рассчитан на эту версию
+export CUDA_HOME=$CONDA_PREFIX
+python setup.py build develop
+```
+
+Веса из [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0) положите в папку `checkpoints/`.
+
 ### Запуск
 
-Установка — как у UnLanedet ([doc/install.md](doc/install.md)). Детекция на изображениях и видео с
-временным сглаживанием фильтром Калмана:
+Детекция на изображениях и на видео с временным сглаживанием фильтром Калмана:
 
 ```bash
 python tools/detect.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --img "images/*.jpg" --savedir vis
 python tools/track_lanes_video.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --video input.mp4 --out compare.mp4
 ```
+
+Веб-интерфейс (`http://localhost:7860`) запускается командой `python tools/gradio_app.py`. Пути к моделям
+задаются в словаре в начале файла `tools/gradio_app.py`.
 
 ### Что добавлено и изменено относительно UnLanedet
 
