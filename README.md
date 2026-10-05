@@ -8,6 +8,22 @@
 *A fork of UnLanedet with CLRNet (ResNet-34) fine-tuned on Russian roads with synthetic weather augmentation
 and converted to TensorRT FP16.*
 
+### Пример работы
+
+Детекция разметки исходной моделью (верхний ряд) и дообученной (нижний ряд) на одном кадре без искажений
+и с синтетическими туманом, дождем и бликом. Красным показаны верно найденные линии, желтым пунктиром — ложные.
+
+<div align="center">
+  <img src="doc/ru_roads/detections.jpg" width="100%"/>
+</div>
+
+Дообученная модель при нарастании интенсивности дождя: качество падает резко, после порога.
+Модель не находит линии, но и ложных не выдает.
+
+<div align="center">
+  <img src="doc/ru_roads/rain_levels.jpg" width="70%"/>
+</div>
+
 ### Веса
 
 Веса не хранятся в git, они опубликованы в [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0):
@@ -31,6 +47,10 @@ python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkp
 | Туман (умеренный) | 0,800 | 0,936 |
 | Дождь (умеренный) | 0,166 | 0,922 |
 | Блик (умеренный) | 0,787 | 0,913 |
+
+<div align="center">
+  <img src="doc/ru_roads/f1_bars.png" width="70%"/>
+</div>
 
 Время обработки кадра (RTX 3080, batch 1): 15,7 мс у исходной модели (PyTorch FP32) и 6,0 мс у дообученной (TensorRT FP16).
 Искажения синтетические, поэтому результаты не гарантируют такого же качества в реальную непогоду.
