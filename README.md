@@ -59,7 +59,9 @@ python tools/track_lanes_video.py config/clrnet/resnet34_culane_finetune.py chec
   `unlanedet/data/transform/__init__.py` (регистрация погодных аугментаций), `tools/detect.py`
   (подгонка размера кадра под конфиг).
 
-Набор данных российских дорог в репозиторий не входит. Лицензия — Apache 2.0, как у UnLanedet.
+Набор данных российских дорог в репозиторий не входит.
+
+Лицензия Apache 2.0.
 
 ---
 
