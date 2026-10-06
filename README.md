@@ -39,6 +39,8 @@ and converted to TensorRT FP16.*
 python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --out-dir checkpoints/tensorrt --precisions fp16
 ```
 
+Движок появится в `checkpoints/tensorrt/clrnet_r34_ru_roads_fp16.engine` (имя берётся из имени чекпоинта).
+
 ### Результаты (валидационная выборка: 108 кадров, 3 сцены, протокол оценки CULane)
 
 | Условие | F1, исходная модель (CULane) | F1, дообученная (TensorRT FP16) |
@@ -58,19 +60,22 @@ python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkp
 ### Установка
 
 Проверено на Linux (WSL2), Python 3.9, PyTorch 2.3.1 + CUDA 12.1, RTX 3080. Компилятор CUDA нужен для сборки
-операции NMS.
+операции NMS. `nvcc` из CUDA 12.1 не поддерживает gcc новее 12, поэтому компилятор C++ ставится в окружение
+отдельно (системный gcc может быть новее).
 
 ```bash
 conda create -n unlanedet python=3.9 -y
 conda activate unlanedet
 conda install -c nvidia/label/cuda-12.1.0 cuda-toolkit -y
+conda install -c conda-forge gcc_linux-64=11.4 gxx_linux-64=11.4 -y
 pip install torch==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cu121
+pip install "setuptools<81"                # конфиги используют pkg_resources, удалённый в setuptools 81
 pip install -r requirements.txt
 pip install -r requirements-tensorrt.txt   # по желанию: экспорт и запуск в TensorRT
 pip install -r requirements-app.txt        # по желанию: веб-интерфейс Gradio
 pip install numpy==1.23.1                  # последним шагом: код UnLanedet рассчитан на эту версию
 export CUDA_HOME=$CONDA_PREFIX
-python setup.py build develop
+pip install -e . --no-build-isolation
 ```
 
 Веса из [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0) положите в папку `checkpoints/`.
@@ -84,8 +89,13 @@ python tools/detect.py config/clrnet/resnet34_culane_finetune.py checkpoints/clr
 python tools/track_lanes_video.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --video input.mp4 --out compare.mp4
 ```
 
-Веб-интерфейс (`http://localhost:7860`) запускается командой `python tools/gradio_app.py`. Пути к моделям
-задаются в словаре в начале файла `tools/gradio_app.py`.
+Веб-интерфейс (`http://localhost:7860`) запускается командой `python tools/gradio_app.py`. Модели для выбора
+перечислены в словаре `CHECKPOINTS` в начале файла `tools/gradio_app.py` (пара «путь к весам или движку, конфиг»);
+для весов из Releases укажите в нём `checkpoints/clrnet_r34_ru_roads.pth` и
+`checkpoints/tensorrt/clrnet_r34_ru_roads_fp16.engine` с конфигом `config/clrnet/resnet34_culane_finetune.py`.
+
+Для дообучения на своих данных от опубликованных весов укажите в `config/clrnet/resnet34_culane_finetune.py`
+`init_checkpoint = "checkpoints/clrnet_r34_ru_roads.pth"`, а также `data_root` и `epoch_per_iter` под свой набор данных.
 
 ### Что добавлено и изменено относительно UnLanedet
 
