@@ -26,6 +26,8 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
+from unlanedet.utils.lane_labels import AUG_MARKER
+
 
 def read_lines_txt(path):
     lanes = []
@@ -72,7 +74,8 @@ def find_lines_files(data_root, mask_dirname):
         if mask_dirname in Path(root).parts:
             continue
         for f in files:
-            if f.endswith('.lines.txt'):
+            # у синтетических копий .lines.txt и маска — симлинки на оригинал
+            if f.endswith('.lines.txt') and AUG_MARKER not in f:
                 yield os.path.join(root, f)
 
 

@@ -21,6 +21,8 @@ from collections import defaultdict
 
 from tqdm import tqdm
 
+from unlanedet.utils.lane_labels import AUG_MARKER
+
 
 def read_lines_txt(path):
     lanes = []
@@ -40,7 +42,8 @@ def find_images(data_root, mask_dirname, list_dirname, img_ext):
         if mask_dirname in rel_root_parts or list_dirname in rel_root_parts:
             continue
         for f in files:
-            if f.endswith(img_ext):
+            # синтетические копии (augment_weather_offline.py) — только в train, их добавляет сам скрипт
+            if f.endswith(img_ext) and AUG_MARKER not in f:
                 img_path = os.path.join(root, f)
                 lines_path = img_path[:-len(img_ext)] + '.lines.txt'
                 if os.path.isfile(lines_path):

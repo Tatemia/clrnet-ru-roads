@@ -21,6 +21,7 @@ import cv2
 from tqdm import tqdm
 
 from unlanedet.data.transform.weather import add_fog, add_rain, add_glare
+from unlanedet.utils.lane_labels import AUG_MARKER
 
 EFFECTS = {
     'fog': lambda img, rng: add_fog(img, beta=rng.uniform(1.2, 3.0), rng=rng),
@@ -52,7 +53,12 @@ def main():
         raise FileNotFoundError(f'{train_gt_path} не найден — сначала запустите tools/gen_culane_lists.py')
 
     with open(train_gt_path) as f:
-        orig_lines = [line.strip() for line in f if line.strip()]
+        all_lines = [line.strip() for line in f if line.strip()]
+    # Повторный запуск: копии прошлого прогона заменяются, а не аугментируются заново.
+    orig_lines = [line for line in all_lines if AUG_MARKER not in line.split()[0]]
+    n_old_aug = len(all_lines) - len(orig_lines)
+    if n_old_aug:
+        print(f'В train_gt.txt уже было {n_old_aug} синтетических строк — они будут заменены новыми.')
 
     effect_names = list(EFFECTS.keys())
     new_lines = list(orig_lines)
@@ -72,9 +78,10 @@ def main():
         chosen_effects = rng.choice(effect_names, size=min(args.copies, len(effect_names)), replace=False)
         for effect in chosen_effects:
             aug_img = EFFECTS[effect](img, rng)
-            aug_rel = rel_img[:-len(args.img_ext)] + f'__aug_{effect}' + args.img_ext
+            aug_rel = rel_img[:-len(args.img_ext)] + f'{AUG_MARKER}{effect}' + args.img_ext
             aug_path = os.path.join(data_root, aug_rel)
-            cv2.imwrite(aug_path, aug_img)
+            if not cv2.imwrite(aug_path, aug_img):
+                raise SystemExit(f'Не удалось записать {aug_path}')
 
             aug_lines_path = aug_path[:-len(args.img_ext)] + '.lines.txt'
             relink(lines_src, aug_lines_path)
@@ -82,7 +89,7 @@ def main():
             new_parts = ['/' + aug_rel] + parts[1:]
             if len(parts) > 1:
                 mask_rel = parts[1].lstrip('/')
-                aug_mask_rel = mask_rel[:-4] + f'__aug_{effect}.png'  # .png маски
+                aug_mask_rel = mask_rel[:-4] + f'{AUG_MARKER}{effect}.png'  # .png маски
                 relink(os.path.join(data_root, mask_rel), os.path.join(data_root, aug_mask_rel))
                 new_parts[1] = '/' + aug_mask_rel
             new_lines.append(' '.join(new_parts))

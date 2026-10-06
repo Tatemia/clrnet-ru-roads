@@ -20,6 +20,21 @@ import cv2
 from tqdm import tqdm
 
 
+def scene_dir_path(args, scene_id):
+    return os.path.join(args.out, f'{args.scene_prefix}_{scene_id:03d}')
+
+
+def is_occupied(scene_dir):
+    return os.path.isdir(scene_dir) and bool(os.listdir(scene_dir))
+
+
+def next_free_scene_id(args):
+    prefix = f'{args.scene_prefix}_'
+    ids = [int(d[len(prefix):]) for d in os.listdir(args.out)
+           if d.startswith(prefix) and d[len(prefix):].isdigit()]
+    return max(ids, default=-1) + 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--video', required=True)
@@ -50,8 +65,16 @@ def main():
           f'новая сцена каждые {scene_frames} кадров (~{args.scene_duration_sec}с)')
 
     os.makedirs(args.out, exist_ok=True)
+    n_planned = max(1, (total_frames - 1) // scene_frames + 1)
+    occupied = [scene_dir_path(args, i) for i in range(args.scene_offset, args.scene_offset + n_planned)
+                if is_occupied(scene_dir_path(args, i))]
+    if occupied:
+        # Перезапись кадров оставила бы старые .lines.txt/маски рядом с новыми картинками.
+        raise SystemExit(f'Папки сцен уже заняты: {", ".join(map(os.path.basename, occupied))}. '
+                         f'Укажите свободный --scene-offset (например {next_free_scene_id(args)}).')
+
     n_saved = 0
-    n_scenes = 0
+    scenes = set()
     frame_idx = 0
 
     pbar = tqdm(total=total_frames, desc='extracting')
@@ -61,19 +84,22 @@ def main():
             break
         if frame_idx % step_frames == 0:
             scene_id = args.scene_offset + frame_idx // scene_frames
-            scene_dir = os.path.join(args.out, f'{args.scene_prefix}_{scene_id:03d}')
+            scene_dir = scene_dir_path(args, scene_id)
+            if scene_id not in scenes and is_occupied(scene_dir):
+                raise SystemExit(f'Папка {scene_dir} уже занята (видео длиннее, чем сообщил контейнер) — '
+                                 f'укажите свободный --scene-offset (например {next_free_scene_id(args)}).')
             os.makedirs(scene_dir, exist_ok=True)
-            if not os.path.isdir(scene_dir) or n_scenes <= scene_id:
-                n_scenes = scene_id + 1
+            scenes.add(scene_id)
             out_path = os.path.join(scene_dir, f'{frame_idx:06d}.jpg')
-            cv2.imwrite(out_path, frame, [cv2.IMWRITE_JPEG_QUALITY, args.jpg_quality])
+            if not cv2.imwrite(out_path, frame, [cv2.IMWRITE_JPEG_QUALITY, args.jpg_quality]):
+                raise SystemExit(f'Не удалось записать {out_path}')
             n_saved += 1
         frame_idx += 1
         pbar.update(1)
     pbar.close()
     cap.release()
 
-    print(f'\nГотово: {n_saved} кадров сохранено в {n_scenes} папках-сценах под {args.out}')
+    print(f'\nГотово: {n_saved} кадров сохранено в {len(scenes)} папках-сценах под {args.out}')
     print('Дальше: разметить кадры в CVAT (по одной задаче на сцену или все сразу — как удобнее),')
     print('затем tools/cvat_to_culane.py -> tools/gen_culane_seg.py -> tools/gen_culane_lists.py')
 

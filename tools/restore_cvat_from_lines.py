@@ -7,7 +7,11 @@
 Пример:
     python tools/restore_cvat_from_lines.py --data-root data/ru_roads \
         --cvat-url http://localhost:8080 --user admin --password admin \
-        --scenes scene_000 scene_001 ... scene_014
+        --scenes scene_000 scene_001 ... scene_014 --yes
+
+Импорт ЗАМЕНЯЕТ разметку задачи. Без --yes скрипт только показывает, что будет
+залито. Сцены, где у части кадров нет .lines.txt или нет ни одной полосы,
+пропускаются.
 """
 import argparse
 import glob
@@ -54,11 +58,13 @@ def build_xml(scene_dir, frame_names, label):
     ET.SubElement(label_el, 'name').text = label
     ET.SubElement(label_el, 'attributes')
 
-    total_lanes = 0
+    total_lanes, n_missing = 0, 0
     for idx, name in enumerate(frame_names):
         lines_path = os.path.join(scene_dir, os.path.splitext(name)[0] + '.lines.txt')
         image_el = ET.SubElement(annotations, 'image', {'id': str(idx), 'name': name})
-        if os.path.isfile(lines_path):
+        if not os.path.isfile(lines_path):
+            n_missing += 1
+        else:
             with open(lines_path) as f:
                 for line in f:
                     vals = [float(v) for v in line.split()]
@@ -70,7 +76,7 @@ def build_xml(scene_dir, frame_names, label):
                         'label': label, 'points': points_str, 'occluded': '0', 'z_order': '0',
                     })
                     total_lanes += 1
-    return ET.tostring(annotations), total_lanes
+    return ET.tostring(annotations), total_lanes, n_missing
 
 
 def upload_annotations(base_url, headers, task_id, xml_bytes, timeout=180):
@@ -94,6 +100,7 @@ def upload_annotations(base_url, headers, task_id, xml_bytes, timeout=180):
             print(f'  [!] импорт не удался: {rr.json()}')
             return False
         time.sleep(2)
+    print(f'  [!] импорт не завершился за {timeout} с (request {rq_id}) — проверьте задачу в CVAT')
     return False
 
 
@@ -105,6 +112,8 @@ def main():
     parser.add_argument('--password', default='admin')
     parser.add_argument('--label', default='lane')
     parser.add_argument('--scenes', nargs='+', required=True)
+    parser.add_argument('--yes', action='store_true',
+                        help='Реально заменить разметку в CVAT (без флага — только проверка, что будет залито)')
     args = parser.parse_args()
 
     token = login(args.cvat_url, args.user, args.password)
@@ -112,14 +121,25 @@ def main():
 
     for scene in args.scenes:
         scene_dir = os.path.join(args.data_root, scene)
+        if not os.path.isdir(scene_dir):
+            print(f'[skip] {scene}: нет папки {scene_dir} — проверьте --data-root/--scenes')
+            continue
         task_id = find_task_by_name(args.cvat_url, headers, scene)
         if task_id is None:
             print(f'[skip] задача "{scene}" не найдена')
             continue
         frame_names = get_frame_names(args.cvat_url, headers, task_id)
-        xml_bytes, total_lanes = build_xml(scene_dir, frame_names, args.label)
+        xml_bytes, total_lanes, n_missing = build_xml(scene_dir, frame_names, args.label)
+        summary = f'{scene} (task {task_id}): {len(frame_names)} кадров, {total_lanes} полос'
+        if n_missing or total_lanes == 0:
+            # Импорт в CVAT ЗАМЕНЯЕТ разметку задачи: неполный XML стёр бы часть ручной работы.
+            print(f'[skip] {summary}, без .lines.txt: {n_missing} кадров — не заливаю')
+            continue
+        if not args.yes:
+            print(f'[проверка] {summary} — для замены разметки в CVAT запустите с --yes')
+            continue
         ok = upload_annotations(args.cvat_url, headers, task_id, xml_bytes)
-        print(f'{scene} (task {task_id}): восстановлено {total_lanes} полос -> {ok}')
+        print(f'{summary} -> восстановлено: {ok}')
 
 
 if __name__ == '__main__':

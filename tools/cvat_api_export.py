@@ -18,6 +18,8 @@ import os
 
 import requests
 
+from unlanedet.utils.lane_labels import write_lines_file
+
 
 def login(base_url, user, password):
     r = requests.post(f'{base_url}/api/auth/login', json={'username': user, 'password': password})
@@ -64,6 +66,8 @@ def main():
     parser.add_argument('--label', default='lane')
     parser.add_argument('--scenes', nargs='+', required=True, help='Имена сцен = имена задач в CVAT')
     parser.add_argument('--min-points', type=int, default=4)
+    parser.add_argument('--allow-empty-overwrite', action='store_true',
+                        help='Разрешить затирать непустые .lines.txt пустыми (по умолчанию такие кадры пропускаются)')
     args = parser.parse_args()
 
     token = login(args.cvat_url, args.user, args.password)
@@ -92,22 +96,21 @@ def main():
             lane = [(pts[i], pts[i + 1]) for i in range(0, len(pts) - 1, 2)]
             by_frame.setdefault(s['frame'], []).append(lane)
 
-        n_lanes, n_short = 0, 0
+        n_lanes, n_short, n_kept = 0, 0, 0
         for frame_idx, name in enumerate(frame_names):
-            lanes = by_frame.get(frame_idx, [])
-            img_path = os.path.join(scene_dir, name)
-            lines_path = os.path.splitext(img_path)[0] + '.lines.txt'
-            with open(lines_path, 'w') as f:
-                for lane in lanes:
-                    lane_sorted = sorted(lane, key=lambda p: p[1])
-                    if len(lane_sorted) < args.min_points:
-                        n_short += 1
-                    coords = ' '.join(f'{x:.2f} {y:.2f}' for x, y in lane_sorted)
-                    f.write(coords + '\n')
-                    n_lanes += 1
+            lanes = [sorted(lane, key=lambda p: p[1]) for lane in by_frame.get(frame_idx, [])]
+            n_short += sum(len(lane) < args.min_points for lane in lanes)
+            lines_path = os.path.splitext(os.path.join(scene_dir, name))[0] + '.lines.txt'
+            if write_lines_file(lines_path, lanes, args.allow_empty_overwrite):
+                n_lanes += len(lanes)
+            else:
+                n_kept += 1
 
         print(f'{scene}: {len(frame_names)} кадров, {n_lanes} полос -> .lines.txt рядом с кадрами'
               + (f' ({n_short} короче {args.min_points} точек!)' if n_short else ''))
+        if n_kept:
+            print(f'  [!] {scene}: {n_kept} кадров без полос в CVAT, но с полосами на диске — '
+                  f'файлы НЕ перезаписаны (проверьте задачу; затереть: --allow-empty-overwrite)')
 
 
 if __name__ == '__main__':
