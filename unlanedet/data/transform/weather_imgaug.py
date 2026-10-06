@@ -23,12 +23,12 @@ import imgaug.augmenters as iaa
 
 from .weather import add_fog, add_rain, add_glare, apply_random_weather
 
-_rng = np.random.default_rng()
-
-
 def _make_lambda(fn, **kwargs):
     def func_images(images, random_state, parents, hooks):
-        return [fn(img, rng=_rng, **kwargs) for img in images]
+        # seed from imgaug's per-call RNG, so effects follow imgaug seeding
+        # (distinct per DataLoader worker and epoch, reproducible by seed)
+        rng = np.random.default_rng(random_state.generate_seed_())
+        return [fn(img, rng=rng, **kwargs) for img in images]
     return iaa.Lambda(func_images=func_images)
 
 

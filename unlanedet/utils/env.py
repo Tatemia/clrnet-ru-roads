@@ -6,6 +6,7 @@ import os
 import random
 import sys
 from datetime import datetime
+import imgaug.random
 import torch
 
 __all__ = ["seed_all_rng"]
@@ -41,6 +42,9 @@ def seed_all_rng(seed=None):
     np.random.seed(seed)
     torch.manual_seed(seed)
     random.seed(seed)
+    # imgaug has its own global RNG; without this every forked DataLoader worker
+    # repeats the same augmentation sequence in every epoch.
+    imgaug.random.seed(seed % 2**32)
     torch.cuda.manual_seed_all(str(seed))
     os.environ["PYTHONHASHSEED"] = str(seed)
 
