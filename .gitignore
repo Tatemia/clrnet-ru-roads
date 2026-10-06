@@ -162,11 +162,12 @@ cython_debug/
 #.idea/
 
 # clrnet-ru-roads: веса, данные и рабочие результаты не хранятся в git (веса — в GitHub Releases)
-checkpoints/
-data/
-output/
-output_finetune/
-context_lane_detection.md
+# ведущий "/" — только папки в корне репозитория (иначе "data/" цепляет и код в unlanedet/data/)
+/checkpoints/
+/data/
+/output/
+/output_finetune/
+/context_lane_detection.md
 *.pth
 *.onnx
 *.engine
