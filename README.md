@@ -2,8 +2,6 @@
 
 Форк [UnLanedet](https://github.com/zkyntu/UnLanedet) с моделью CLRNet (ResNet-34), дообученной на наборе данных
 российских дорог с синтетической аугментацией погоды (туман, дождь, блик) и переведенной в TensorRT FP16.
-Материалы к статье «Исследование влияния синтетической аугментации на устойчивость алгоритмов детекции
-дорожной разметки к погодным искажениям».
 
 *A fork of UnLanedet with CLRNet (ResNet-34) fine-tuned on Russian roads with synthetic weather augmentation
 and converted to TensorRT FP16.*
