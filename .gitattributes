@@ -1,0 +1,2 @@
+# скрипты Windows: cmd.exe надёжно разбирает метки только с окончаниями строк CRLF
+*.bat text eol=crlf

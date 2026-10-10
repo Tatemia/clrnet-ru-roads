@@ -1,0 +1,3 @@
+# Ограничения для изолированной сборки пакетов из исходников (pip применяет их через PIP_CONSTRAINT):
+# albumentations 0.4.6 при сборке импортирует pkg_resources, удалённый в setuptools 81.
+setuptools<81

@@ -59,26 +59,43 @@ python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkp
 
 ### Установка
 
-Проверено на Linux (WSL2), Python 3.9, PyTorch 2.3.1 + CUDA 12.1, RTX 3080. Компилятор CUDA нужен для сборки
-операции NMS. `nvcc` из CUDA 12.1 не поддерживает gcc новее 12, поэтому компилятор C++ ставится в окружение
-отдельно (системный gcc может быть новее).
+Проверено на Linux (WSL2), Python 3.9, PyTorch 2.3.1 + CUDA 12.1, RTX 3080. Точные версии пакетов —
+в `requirements-lock.txt`. CUDA-расширения (NMS, DCN) нужны другим моделям UnLanedet; CLRNet работает и без них.
+Для их сборки `nvcc` из CUDA 12.1 требует gcc не новее 12, поэтому компилятор C++ ставится в окружение отдельно.
 
 ```bash
 conda create -n unlanedet python=3.9 -y
 conda activate unlanedet
 conda install -c nvidia/label/cuda-12.1.0 cuda-toolkit -y
 conda install -c conda-forge gcc_linux-64=11.4 gxx_linux-64=11.4 -y
+export PIP_CONSTRAINT=$PWD/build-constraints.txt   # albumentations 0.4.6 собирается только с setuptools<81
+pip install "setuptools<81"
 pip install torch==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cu121
-pip install "setuptools<81"                # конфиги используют pkg_resources, удалённый в setuptools 81
-pip install -r requirements.txt
-pip install -r requirements-tensorrt.txt   # по желанию: экспорт и запуск в TensorRT
-pip install -r requirements-app.txt        # по желанию: веб-интерфейс Gradio
-pip install numpy==1.23.1                  # последним шагом: код UnLanedet рассчитан на эту версию
+pip install -r requirements.txt -r requirements-app.txt -c requirements-lock.txt
+pip install -r requirements-tensorrt.txt -c requirements-lock.txt   # по желанию: экспорт и запуск в TensorRT
+pip install numpy==1.23.1 --no-deps        # последним шагом: код UnLanedet и imgaug рассчитаны на эту версию
 export CUDA_HOME=$CONDA_PREFIX
 pip install -e . --no-build-isolation
+python tools/check_install.py              # самопроверка установки
 ```
 
 Веса из [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0) положите в папку `checkpoints/`.
+
+### Установка на Windows (без WSL)
+
+Нужны видеокарта NVIDIA с драйвером (CUDA 12) и Python 3.9 64-bit с `py launcher`
+([python.org](https://www.python.org/downloads/release/python-3913/)) — он ставится рядом с любым другим Python
+(например, 3.13) и не мешает ему. Папку проекта положите в путь только из латинских букв, например `C:\UnLanedet`:
+OpenCV на Windows не открывает файлы, если в пути есть кириллица.
+
+1. `windows\setup.bat` — создаёт окружение `.venv` в папке проекта, ставит пакеты точных версий и проверяет
+   установку (`tools\check_install.py`). CUDA-расширения не собираются, компилятор не нужен.
+2. `windows\build_tensorrt.bat` — собирает движки TensorRT под эту видеокарту.
+3. `windows\run_gradio.bat` — веб-интерфейс, `http://127.0.0.1:7860`.
+
+Также `windows\train.bat` — дообучение, `windows\console.bat` — консоль с окружением для команд из раздела
+«Запуск». При переносе папки с другого компьютера `data\`, `checkpoints\` и `output\` копируются как есть,
+а окружение `.venv` и движки TensorRT создаются заново этими скриптами.
 
 ### Запуск
 

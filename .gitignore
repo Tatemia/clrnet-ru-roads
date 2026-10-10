@@ -168,6 +168,8 @@ cython_debug/
 /output/
 /output_finetune/
 /context_lane_detection.md
+# временные файлы скриптов windows\ (TEMP, загрузки Gradio)
+/tmp/
 *.pth
 *.onnx
 *.engine
