@@ -28,7 +28,8 @@ if not exist ".venv\Scripts\python.exe" (
     echo --- Создаю окружение .venv ^(Python 3.9^)
     py -3.9 -m venv .venv || goto :fail
 )
-call ".venv\Scripts\activate.bat" || goto :fail
+call "%~dp0_env.bat"
+if /i not "%VIRTUAL_ENV%"=="%ROOT%\.venv" goto :fail
 
 rem albumentations 0.4.6 собирается из исходников и при сборке требует setuptools<81
 set "PIP_CONSTRAINT=%ROOT%\build-constraints.txt"
@@ -43,8 +44,9 @@ if errorlevel 1 echo [--] TensorRT не установлен: будет раб�
 echo --- numpy 1.23.1 последним шагом ^(код UnLanedet и imgaug требуют именно её^)
 python -m pip install numpy==1.23.1 --no-deps || goto :fail
 
-rem Подключаем папку проекта к окружению вместо "pip install -e ." (тот собирал бы CUDA-расширения)
-python -c "import os, site; open(os.path.join(site.getsitepackages()[-1], 'unlanedet_project.pth'), 'w').write(os.getcwd())" || goto :fail
+rem Подключаем папку проекта к окружению вместо "pip install -e ." (тот собирал бы CUDA-расширения).
+rem Путь относительный (от site-packages): после перемещения папки проекта он остаётся верным.
+python -c "import os, site; sp = site.getsitepackages()[-1]; open(os.path.join(sp, 'unlanedet_project.pth'), 'w').write(os.path.relpath(os.getcwd(), sp))" || goto :fail
 
 echo.
 echo --- Проверка установки

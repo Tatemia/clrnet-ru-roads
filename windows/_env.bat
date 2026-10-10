@@ -11,4 +11,8 @@ set "TMP=%ROOT%\tmp"
 set "GRADIO_TEMP_DIR=%ROOT%\tmp\gradio"
 if not exist "%ROOT%\tmp" mkdir "%ROOT%\tmp"
 cd /d "%ROOT%"
-if exist "%ROOT%\.venv\Scripts\activate.bat" call "%ROOT%\.venv\Scripts\activate.bat"
+rem Окружение подключается по текущему расположению папки (не через activate.bat, в котором
+rem записан абсолютный путь) — папку проекта можно перемещать на другой диск или в другую папку.
+if not exist "%ROOT%\.venv\Scripts\python.exe" goto :eof
+set "VIRTUAL_ENV=%ROOT%\.venv"
+set "PATH=%ROOT%\.venv\Scripts;%PATH%"
