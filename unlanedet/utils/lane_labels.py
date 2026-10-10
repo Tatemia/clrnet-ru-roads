@@ -1,8 +1,20 @@
 """Запись разметки .lines.txt (формат CULane) без потери уже существующих полос."""
 import os
+import shutil
 
 # Метка синтетических копий кадров (tools/augment_weather_offline.py): "<кадр>__aug_<эффект>.jpg"
 AUG_MARKER = '__aug_'
+
+
+def link_or_copy(src, dst):
+    """Ссылка dst -> src; если ОС не даёт создать ссылку (Windows без режима
+    разработчика или прав администратора) — обычная копия файла."""
+    if os.path.islink(dst) or os.path.exists(dst):
+        os.remove(dst)
+    try:
+        os.symlink(os.path.abspath(src), dst)
+    except OSError:
+        shutil.copyfile(src, dst)
 
 
 def has_lanes(lines_path):

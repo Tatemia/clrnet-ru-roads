@@ -8,5 +8,6 @@ from .collect_hm import CollectHm
 from .bezier_transforms import Lanes2ControlPoints,GenerateBezierInfo,DefaultFormatBundle
 from .test_time_aug import MultiScaleFlipAug
 from .generate_ga_lane import GenerateGAInfo
+from . import imgaug_compat  # noqa: F401  (кэш imgaug для DataLoader-воркеров через spawn, Windows)
 from . import weather_imgaug  # noqa: F401  (регистрирует SyntheticFog/Rain/Glare/Weather в imgaug.augmenters)
 from .weather import add_fog, add_rain, add_glare, apply_random_weather

@@ -21,7 +21,7 @@ import cv2
 from tqdm import tqdm
 
 from unlanedet.data.transform.weather import add_fog, add_rain, add_glare
-from unlanedet.utils.lane_labels import AUG_MARKER
+from unlanedet.utils.lane_labels import AUG_MARKER, link_or_copy
 
 EFFECTS = {
     'fog': lambda img, rng: add_fog(img, beta=rng.uniform(1.2, 3.0), rng=rng),
@@ -31,9 +31,7 @@ EFFECTS = {
 
 
 def relink(src, dst):
-    if os.path.islink(dst) or os.path.exists(dst):
-        os.remove(dst)
-    os.symlink(os.path.abspath(src), dst)
+    link_or_copy(src, dst)
 
 
 def main():

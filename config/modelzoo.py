@@ -1,6 +1,5 @@
 import os
 from typing import Optional
-import pkg_resources
 import torch
 
 from unlanedet.checkpoint import Checkpointer
@@ -18,6 +17,9 @@ def get_config_file(config_path):
     Returns:
         str: the real path to the config file.
     """
+    # imported here: pkg_resources is gone in setuptools>=81, and only this helper needs it
+    import pkg_resources
+
     cfg_file = pkg_resources.resource_filename(
         "detectron2.model_zoo", os.path.join("configs", config_path)
     )

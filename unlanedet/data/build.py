@@ -1,3 +1,4 @@
+import imgaug.augmenters as iaa
 import torch
 import torch.utils.data as torchdata
 from torch.utils.data.distributed import DistributedSampler
@@ -17,9 +18,20 @@ def trivial_batch_collator(batch):
     """
     return batch
 
+def _dataset_augmenters(dataset):
+    steps = getattr(getattr(dataset, 'processes', None), 'preprocess', None) or []
+    return [s.transform for s in steps if isinstance(getattr(s, 'transform', None), iaa.Augmenter)]
+
+
 def worker_init_reset_seed(worker_id):
     initial_seed = torch.initial_seed() % 2**31
-    seed_all_rng(initial_seed + worker_id)
+    seed = initial_seed + worker_id
+    seed_all_rng(seed)
+    # With 'spawn' (Windows) augmenters arrive as pickled copies with their own RNG
+    # state, untouched by the global imgaug seed, so every worker would repeat the
+    # same augmentations in every epoch: reseed them explicitly.
+    for augmenter in _dataset_augmenters(torchdata.get_worker_info().dataset):
+        augmenter.seed_(seed)
 
 def build_batch_data_loader(
     dataset,

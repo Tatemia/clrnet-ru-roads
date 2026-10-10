@@ -18,18 +18,24 @@ imgaug-аугментеры, чтобы их можно было указыва�
 Импорт этого модуля регистрирует классы в unlanedet.data.transform.__init__,
 после чего они доступны через getattr(imgaug.augmenters, name).
 """
+import functools
+
 import numpy as np
 import imgaug.augmenters as iaa
 
 from .weather import add_fog, add_rain, add_glare, apply_random_weather
 
+def _apply_effect(images, random_state, parents, hooks, effect, effect_kwargs):
+    # seed from imgaug's per-call RNG, so effects follow imgaug seeding
+    # (distinct per DataLoader worker and epoch, reproducible by seed)
+    rng = np.random.default_rng(random_state.generate_seed_())
+    return [effect(img, rng=rng, **effect_kwargs) for img in images]
+
+
 def _make_lambda(fn, **kwargs):
-    def func_images(images, random_state, parents, hooks):
-        # seed from imgaug's per-call RNG, so effects follow imgaug seeding
-        # (distinct per DataLoader worker and epoch, reproducible by seed)
-        rng = np.random.default_rng(random_state.generate_seed_())
-        return [fn(img, rng=rng, **kwargs) for img in images]
-    return iaa.Lambda(func_images=func_images)
+    # partial of a module-level function (not a closure): picklable, so DataLoader
+    # workers also start with the 'spawn' method used on Windows
+    return iaa.Lambda(func_images=functools.partial(_apply_effect, effect=fn, effect_kwargs=kwargs))
 
 
 def SyntheticFog(**kwargs):

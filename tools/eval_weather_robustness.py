@@ -27,6 +27,7 @@ from unlanedet.engine.defaults import create_ddp_model
 from unlanedet.evaluation.evaluator import inference_on_dataset
 from unlanedet.evaluation.testing import print_csv_format
 from unlanedet.data.transform.weather import add_fog, add_rain, add_glare
+from unlanedet.utils.lane_labels import link_or_copy
 
 EFFECTS = {
     'clean': lambda img, rng: img,
@@ -65,9 +66,7 @@ def build_weather_dataset(orig_root, tmp_root, effect_fn, rng):
         src_lines = src_img[:-4] + '.lines.txt'
         dst_lines = dst_img[:-4] + '.lines.txt'
         if os.path.isfile(src_lines):
-            if os.path.islink(dst_lines) or os.path.exists(dst_lines):
-                os.remove(dst_lines)
-            os.symlink(os.path.abspath(src_lines), dst_lines)
+            link_or_copy(src_lines, dst_lines)
 
 
 def run_eval(cfg, model, data_root, output_basedir):
