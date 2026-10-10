@@ -8,7 +8,7 @@
 *A fork of UnLanedet with CLRNet (ResNet-34) fine-tuned on Russian roads with synthetic weather augmentation
 and converted to TensorRT FP16.*
 
-### Пример работы
+## Пример работы
 
 Детекция разметки исходной моделью (верхний ряд) и дообученной (нижний ряд) на одном кадре без искажений
 и с синтетическими туманом, дождем и бликом. Красным показаны верно найденные линии, желтым пунктиром — ложные.
@@ -24,24 +24,7 @@ and converted to TensorRT FP16.*
   <img src="doc/ru_roads/rain_levels.jpg" width="70%"/>
 </div>
 
-### Веса
-
-Веса не хранятся в git, они опубликованы в [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0):
-
-| Файл | Формат |
-|---|---|
-| `clrnet_r34_ru_roads.pth` | PyTorch, исходные веса дообученной модели |
-| `clrnet_r34_ru_roads_fp16.onnx` | ONNX: backbone и FPN в FP16, голова в FP32 (для сборки движка TensorRT) |
-
-Движок TensorRT привязан к видеокарте и версии TensorRT, поэтому собирается на месте из чекпоинта:
-
-```bash
-python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --out-dir checkpoints/tensorrt --precisions fp16
-```
-
-Движок появится в `checkpoints/tensorrt/clrnet_r34_ru_roads_fp16.engine` (имя берётся из имени чекпоинта).
-
-### Результаты (валидационная выборка: 108 кадров, 3 сцены, протокол оценки CULane)
+## Результаты (валидационная выборка: 108 кадров, 3 сцены, протокол оценки CULane)
 
 | Условие | F1, исходная модель (CULane) | F1, дообученная (TensorRT FP16) |
 |---|---|---|
@@ -57,11 +40,30 @@ python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkp
 Время обработки кадра (RTX 3080, batch 1): 15,7 мс у исходной модели (PyTorch FP32) и 6,0 мс у дообученной (TensorRT FP16).
 Искажения синтетические, поэтому результаты не гарантируют такого же качества в реальную непогоду.
 
-### Установка
+## Установка
 
-Проверено на Linux (WSL2), Python 3.9, PyTorch 2.3.1 + CUDA 12.1, RTX 3080. Точные версии пакетов —
-в `requirements-lock.txt`. CUDA-расширения (NMS, DCN) нужны другим моделям UnLanedet; CLRNet работает и без них.
-Для их сборки `nvcc` из CUDA 12.1 требует gcc не новее 12, поэтому компилятор C++ ставится в окружение отдельно.
+**Требования.** Видеокарта NVIDIA с драйвером, поддерживающим CUDA 12, и Python 3.9 (более новые версии не подходят:
+нужны PyTorch 2.3.1 и numpy 1.23.1). Проверено на RTX 3080 в Linux (WSL2) и в Windows 11 без WSL.
+
+**Версии.** PyTorch 2.3.1 + CUDA 12.1, numpy 1.23.1 (ставится последним шагом), по желанию TensorRT 11.3.
+Точные версии всех пакетов — в `requirements-lock.txt`. CUDA-расширения UnLanedet (NMS, DCN) нужны другим
+моделям; CLRNet работает и без них.
+
+**Веса.** В git не хранятся, опубликованы в [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0);
+положите их в папку `checkpoints/`:
+
+| Файл | Формат |
+|---|---|
+| `clrnet_r34_ru_roads.pth` | PyTorch, исходные веса дообученной модели |
+| `clrnet_r34_ru_roads_fp16.onnx` | ONNX: backbone и FPN в FP16, голова в FP32 (для сборки движка TensorRT) |
+
+**Проверка.** После установки `tools/check_install.py` проверяет версии, видеокарту, загрузку модели
+и распознавание на кадре, TensorRT, Gradio и ffmpeg.
+
+### Linux
+
+Для сборки CUDA-расширений `nvcc` из CUDA 12.1 требует gcc не новее 12, поэтому компилятор C++ ставится
+в окружение отдельно.
 
 ```bash
 conda create -n unlanedet python=3.9 -y
@@ -76,45 +78,70 @@ pip install -r requirements-tensorrt.txt -c requirements-lock.txt   # по же�
 pip install numpy==1.23.1 --no-deps        # последним шагом: код UnLanedet и imgaug рассчитаны на эту версию
 export CUDA_HOME=$CONDA_PREFIX
 pip install -e . --no-build-isolation
-python tools/check_install.py              # самопроверка установки
+python tools/check_install.py
 ```
 
-Веса из [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0) положите в папку `checkpoints/`.
+### Windows (без WSL)
 
-### Установка на Windows (без WSL)
+Нужен Python 3.9 64-bit с `py launcher` ([python.org](https://www.python.org/downloads/release/python-3913/)) —
+он ставится рядом с любым другим Python (например, 3.13) и не мешает ему. Папку проекта положите в путь только
+из латинских букв, например `C:\UnLanedet`: OpenCV на Windows не открывает файлы, если в пути есть кириллица.
 
-Нужны видеокарта NVIDIA с драйвером (CUDA 12) и Python 3.9 64-bit с `py launcher`
-([python.org](https://www.python.org/downloads/release/python-3913/)) — он ставится рядом с любым другим Python
-(например, 3.13) и не мешает ему. Папку проекта положите в путь только из латинских букв, например `C:\UnLanedet`:
-OpenCV на Windows не открывает файлы, если в пути есть кириллица.
+```bat
+windows\setup.bat
+```
 
-1. `windows\setup.bat` — создаёт окружение `.venv` в папке проекта, ставит пакеты точных версий и проверяет
-   установку (`tools\check_install.py`). CUDA-расширения не собираются, компилятор не нужен.
-2. `windows\build_tensorrt.bat` — собирает движки TensorRT под эту видеокарту.
-3. `windows\run_gradio.bat` — веб-интерфейс, `http://127.0.0.1:7860`.
+Скрипт создаёт окружение `.venv` внутри папки проекта, ставит пакеты точных версий и запускает
+`tools\check_install.py`. CUDA-расширения не собираются, компилятор не нужен. После установки папку можно
+перемещать на другой диск; на другом компьютере `windows\setup.bat` запускается заново.
 
-Также `windows\train.bat` — дообучение, `windows\console.bat` — консоль с окружением для команд из раздела
-«Запуск». При переносе папки с другого компьютера `data\`, `checkpoints\` и `output\` копируются как есть,
-а окружение `.venv` и движки TensorRT создаются заново этими скриптами.
+## Запуск
 
-### Запуск
+Что есть:
 
-Детекция на изображениях и на видео с временным сглаживанием фильтром Калмана:
+- детекция разметки на изображениях (`tools/detect.py`) и на видео с временным сглаживанием фильтром Калмана
+  (`tools/track_lanes_video.py`);
+- веб-интерфейс Gradio (`tools/gradio_app.py`, `http://127.0.0.1:7860`) — фото и видео, выбор модели;
+- дообучение (`tools/train_net.py` с конфигом `config/clrnet/resnet34_culane_finetune.py`);
+- сборка движка TensorRT (`tools/export_tensorrt.py`). Движок привязан к видеокарте и версии TensorRT,
+  поэтому собирается на месте; имя берётся из имени чекпоинта (`clrnet_r34_ru_roads_fp16.engine`).
+
+Модели для выбора в веб-интерфейсе перечислены в словаре `CHECKPOINTS` в начале `tools/gradio_app.py`
+(пара «путь к весам или движку, конфиг»); для весов из Releases укажите в нём `checkpoints/clrnet_r34_ru_roads.pth`
+и `checkpoints/tensorrt/clrnet_r34_ru_roads_fp16.engine` с конфигом `config/clrnet/resnet34_culane_finetune.py`.
+
+Для дообучения от опубликованных весов укажите в `config/clrnet/resnet34_culane_finetune.py`
+`init_checkpoint = "checkpoints/clrnet_r34_ru_roads.pth"`, а также `data_root` и `epoch_per_iter` под свой набор
+данных. Результаты обучения пишутся в `output/` (`model_best.pth` там перезаписывается).
+
+### Linux
 
 ```bash
+conda activate unlanedet
+python tools/export_tensorrt.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --out-dir checkpoints/tensorrt --precisions fp16
 python tools/detect.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --img "images/*.jpg" --savedir vis
 python tools/track_lanes_video.py config/clrnet/resnet34_culane_finetune.py checkpoints/clrnet_r34_ru_roads.pth --video input.mp4 --out compare.mp4
+python tools/gradio_app.py
+python tools/train_net.py --config-file config/clrnet/resnet34_culane_finetune.py --num-gpus 1
 ```
 
-Веб-интерфейс (`http://localhost:7860`) запускается командой `python tools/gradio_app.py`. Модели для выбора
-перечислены в словаре `CHECKPOINTS` в начале файла `tools/gradio_app.py` (пара «путь к весам или движку, конфиг»);
-для весов из Releases укажите в нём `checkpoints/clrnet_r34_ru_roads.pth` и
-`checkpoints/tensorrt/clrnet_r34_ru_roads_fp16.engine` с конфигом `config/clrnet/resnet34_culane_finetune.py`.
+### Windows
 
-Для дообучения на своих данных от опубликованных весов укажите в `config/clrnet/resnet34_culane_finetune.py`
-`init_checkpoint = "checkpoints/clrnet_r34_ru_roads.pth"`, а также `data_root` и `epoch_per_iter` под свой набор данных.
+| Скрипт | Что делает |
+|---|---|
+| `windows\build_tensorrt.bat` | собирает движки TensorRT FP32 и FP16 под эту видеокарту |
+| `windows\run_gradio.bat` | веб-интерфейс, `http://127.0.0.1:7860` |
+| `windows\train.bat` | дообучение (дополнительные параметры передаются как есть, например `train.max_iter=100`) |
+| `windows\console.bat` | консоль с окружением проекта для остальных команд |
 
-### Что добавлено и изменено относительно UnLanedet
+Команды детекции в `windows\console.bat` — те же, что для Linux, с путями через `\`:
+
+```bat
+python tools\detect.py config\clrnet\resnet34_culane_finetune.py checkpoints\clrnet_r34_ru_roads.pth --img "images\*.jpg" --savedir vis
+python tools\track_lanes_video.py config\clrnet\resnet34_culane_finetune.py checkpoints\clrnet_r34_ru_roads.pth --video input.mp4 --out compare.mp4
+```
+
+## Что добавлено и изменено относительно UnLanedet
 
 - `unlanedet/data/transform/weather.py`, `weather_imgaug.py` — синтез тумана (закон Кошмидера), дождя и блика,
   аугментеры imgaug; подключаются в `config/clrnet/resnet34_culane_finetune.py` (`weather_aug_p`).
@@ -124,9 +151,10 @@ python tools/track_lanes_video.py config/clrnet/resnet34_culane_finetune.py chec
   устойчивости к искажениям и замер скорости.
 - `tools/cvat_*.py`, `tools/predict_to_cvat.py`, `tools/gen_culane_*.py`, `tools/extract_video_frames.py` —
   подготовка и разметка собственного набора данных в формате CULane.
+- `windows/`, `tools/check_install.py`, `requirements-lock.txt` — установка и запуск на Windows, самопроверка.
 - Изменены файлы UnLanedet: `unlanedet/model/CLRNet/clr_head.py` (ускорена постобработка),
-  `unlanedet/data/transform/__init__.py` (регистрация погодных аугментаций), `tools/detect.py`
-  (подгонка размера кадра под конфиг).
+  `unlanedet/data/transform/__init__.py` (регистрация погодных аугментаций), `unlanedet/data/build.py`
+  (seed аугментаций в процессах загрузки данных), `tools/detect.py` (подгонка размера кадра под конфиг).
 
 Набор данных российских дорог в репозиторий не входит.
 
