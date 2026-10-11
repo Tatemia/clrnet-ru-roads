@@ -1,10 +1,20 @@
-# clrnet-ru-roads (форк UnLanedet)
+# clrnet-ru-roads
 
-Форк [UnLanedet](https://github.com/zkyntu/UnLanedet) с моделью CLRNet (ResNet-34), дообученной на наборе данных
-российских дорог с синтетической аугментацией погоды (туман, дождь, блик) и переведенной в TensorRT FP16.
+Детекция дорожной разметки моделью CLRNet (ResNet-34), дообученной на российских дорогах с синтетической
+аугментацией погоды (туман, дождь, блик). Модель работает в реальном времени через TensorRT FP16, сглаживает
+линии на видео фильтром Калмана и запускается в веб-интерфейсе на Linux и Windows.
 
-*A fork of UnLanedet with CLRNet (ResNet-34) fine-tuned on Russian roads with synthetic weather augmentation
-and converted to TensorRT FP16.*
+*Lane detection with CLRNet (ResNet-34) fine-tuned on Russian roads with synthetic weather augmentation
+(fog, rain, glare); TensorRT FP16, Kalman tracking on video, web UI; Linux and Windows.*
+
+## Возможности
+
+- Детекция разметки на изображениях и на видео с временным сглаживанием фильтром Калмана.
+- Веб-интерфейс Gradio: фото и видео, выбор модели (PyTorch или TensorRT).
+- Синтетические погодные искажения для обучения и проверки устойчивости: туман (закон Кошмидера), дождь, блик.
+- Экспорт в ONNX и TensorRT FP16/FP32.
+- Подготовка собственного набора данных в формате CULane: нарезка видео, предразметка моделью, разметка в CVAT.
+- Установка на Linux и на Windows без WSL с самопроверкой.
 
 ## Пример работы
 
@@ -22,7 +32,9 @@ and converted to TensorRT FP16.*
   <img src="doc/ru_roads/rain_levels.jpg" width="70%"/>
 </div>
 
-## Результаты (валидационная выборка: 108 кадров, 3 сцены, протокол оценки CULane)
+## Результаты
+
+Валидационная выборка: 108 кадров, 3 сцены, протокол оценки CULane.
 
 | Условие | F1, исходная модель (CULane) | F1, дообученная (TensorRT FP16) |
 |---|---|---|
@@ -44,15 +56,14 @@ and converted to TensorRT FP16.*
 нужны PyTorch 2.3.1 и numpy 1.23.1). Проверено на RTX 3080 в Linux (WSL2) и в Windows 11 без WSL.
 
 **Версии.** PyTorch 2.3.1 + CUDA 12.1, numpy 1.23.1 (ставится последним шагом), по желанию TensorRT 11.3.
-Точные версии всех пакетов — в `requirements-lock.txt`. CUDA-расширения UnLanedet (NMS, DCN) нужны другим
-моделям; CLRNet работает и без них.
+Точные версии всех пакетов — в `requirements-lock.txt`. Собирать CUDA-расширения (NMS, DCN) для CLRNet не нужно.
 
 **Веса.** В git не хранятся, опубликованы в [Releases](https://github.com/Tatemia/clrnet-ru-roads/releases/tag/v1.0);
 положите их в папку `checkpoints/`:
 
 | Файл | Формат |
 |---|---|
-| `clrnet_r34_ru_roads.pth` | PyTorch, исходные веса дообученной модели |
+| `clrnet_r34_ru_roads.pth` | PyTorch, веса дообученной модели |
 | `clrnet_r34_ru_roads_fp16.onnx` | ONNX: backbone и FPN в FP16, голова в FP32 (для сборки движка TensorRT) |
 
 **Проверка.** После установки `tools/check_install.py` проверяет версии, видеокарту, загрузку модели
@@ -73,7 +84,7 @@ pip install "setuptools<81"
 pip install torch==2.3.1 torchvision==0.18.1 --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt -r requirements-app.txt -c requirements-lock.txt
 pip install -r requirements-tensorrt.txt -c requirements-lock.txt   # по желанию: экспорт и запуск в TensorRT
-pip install numpy==1.23.1 --no-deps        # последним шагом: код UnLanedet и imgaug рассчитаны на эту версию
+pip install numpy==1.23.1 --no-deps        # последним шагом: код и imgaug рассчитаны на эту версию
 export CUDA_HOME=$CONDA_PREFIX
 pip install -e . --no-build-isolation
 python tools/check_install.py
@@ -83,15 +94,15 @@ python tools/check_install.py
 
 Нужен Python 3.9 64-bit с `py launcher` ([python.org](https://www.python.org/downloads/release/python-3913/)) —
 он ставится рядом с любым другим Python (например, 3.13) и не мешает ему. Папку проекта положите в путь только
-из латинских букв, например `C:\UnLanedet`: OpenCV на Windows не открывает файлы, если в пути есть кириллица.
+из латинских букв, например `C:\clrnet-ru-roads`: OpenCV на Windows не открывает файлы, если в пути есть кириллица.
 
 ```bat
 windows\setup.bat
 ```
 
 Скрипт создаёт окружение `.venv` внутри папки проекта, ставит пакеты точных версий и запускает
-`tools\check_install.py`. CUDA-расширения не собираются, компилятор не нужен. После установки папку можно
-перемещать на другой диск; на другом компьютере `windows\setup.bat` запускается заново.
+`tools\check_install.py`. Компилятор не нужен. После установки папку можно перемещать на другой диск;
+на другом компьютере `windows\setup.bat` запускается заново.
 
 ## Запуск
 
@@ -99,7 +110,7 @@ windows\setup.bat
 
 - детекция разметки на изображениях (`tools/detect.py`) и на видео с временным сглаживанием фильтром Калмана
   (`tools/track_lanes_video.py`);
-- веб-интерфейс Gradio (`tools/gradio_app.py`, `http://127.0.0.1:7860`) — фото и видео, выбор модели;
+- веб-интерфейс Gradio (`tools/gradio_app.py`, `http://127.0.0.1:7860`);
 - дообучение (`tools/train_net.py` с конфигом `config/clrnet/resnet34_culane_finetune.py`);
 - сборка движка TensorRT (`tools/export_tensorrt.py`). Движок привязан к видеокарте и версии TensorRT,
   поэтому собирается на месте; имя берётся из имени чекпоинта (`clrnet_r34_ru_roads_fp16.engine`).
@@ -139,87 +150,25 @@ python tools\detect.py config\clrnet\resnet34_culane_finetune.py checkpoints\clr
 python tools\track_lanes_video.py config\clrnet\resnet34_culane_finetune.py checkpoints\clrnet_r34_ru_roads.pth --video input.mp4 --out compare.mp4
 ```
 
-## Что добавлено и изменено относительно UnLanedet
+## Состав репозитория
 
-- `unlanedet/data/transform/weather.py`, `weather_imgaug.py` — синтез тумана (закон Кошмидера), дождя и блика,
-  аугментеры imgaug; подключаются в `config/clrnet/resnet34_culane_finetune.py` (`weather_aug_p`).
-- `unlanedet/tracking/lane_tracker.py`, `tools/track_lanes_video.py` — трекинг полос фильтром Калмана.
-- `tools/export_tensorrt.py`, `unlanedet/utils/trt_model.py` — экспорт в ONNX/TensorRT и запуск движка.
-- `tools/compare_models.py`, `tools/eval_weather_robustness.py`, `tools/benchmark_speed.py` — оценка
-  устойчивости к искажениям и замер скорости.
-- `tools/cvat_*.py`, `tools/predict_to_cvat.py`, `tools/gen_culane_*.py`, `tools/extract_video_frames.py` —
-  подготовка и разметка собственного набора данных в формате CULane.
-- `windows/`, `tools/check_install.py`, `requirements-lock.txt` — установка и запуск на Windows, самопроверка.
-- Изменены файлы UnLanedet: `unlanedet/model/CLRNet/clr_head.py` (ускорена постобработка),
-  `unlanedet/data/transform/__init__.py` (регистрация погодных аугментаций), `unlanedet/data/build.py`
-  (seed аугментаций в процессах загрузки данных), `tools/detect.py` (подгонка размера кадра под конфиг).
+| Путь | Назначение |
+|---|---|
+| `config/clrnet/resnet34_culane_finetune.py` | конфиг дообучения и инференса (в том числе вероятность погодной аугментации `weather_aug_p`) |
+| `unlanedet/data/transform/weather.py`, `weather_imgaug.py` | синтез тумана, дождя и блика; аугментеры imgaug |
+| `unlanedet/tracking/lane_tracker.py`, `tools/track_lanes_video.py` | трекинг полос фильтром Калмана |
+| `tools/export_tensorrt.py`, `unlanedet/utils/trt_model.py` | экспорт в ONNX/TensorRT и запуск движка |
+| `tools/gradio_app.py` | веб-интерфейс |
+| `tools/eval_weather_robustness.py`, `tools/compare_models.py`, `tools/benchmark_speed.py` | оценка устойчивости к искажениям и замер скорости |
+| `tools/extract_video_frames.py`, `tools/predict_to_cvat.py`, `tools/cvat_*.py`, `tools/gen_culane_*.py` | подготовка и разметка набора данных в формате CULane |
+| `windows/`, `tools/check_install.py`, `requirements-lock.txt` | установка и запуск на Windows, самопроверка, точные версии |
 
 Набор данных российских дорог в репозиторий не входит.
 
-Лицензия Apache 2.0.
+## Лицензия
 
----
-
-# UnLanedet
-<font size=4> An advanced lane detection toolbox. UnLanedet contains many advanced lane detection methods to facilitate scientific research and lane detection applications. If you are in China, [gitee](https://gitee.com/zkyseured/UnLanedet) link may be helpful for you.
-
-<div align="center">
-  <img src="doc/Lane_Detection_Demo.jpg"/>
-</div>
-<br>
-
-## What's New 
-* <font size=3> [2025-11-17] The code of DiffusionLane has been released. Enjoy it!
-* <font size=3> [2025-10-28] We propose a novel generative diffusion-based framework for lane detection, named DiffusionLane. Arxiv paper is [here](https://arxiv.org/abs/2510.22236). Code and model will be released in the next few weeks.
-* <font size=3> [2025-07-18] We release the technical report of UnLanedet: [paper_link](https://www.preprints.org/manuscript/202507.1610/v1).
-* <font size=3> [2025-07-18] The latest distributed training code is provided. [PR link](https://github.com/zkyntu/UnLanedet/pull/53). Many thanks to the author.
-* <font size=3> [2025-05-30] We support DLA34 and ConvNexT backbone. CLRNet with ConvNext-Tiny gets 80.21 F1 score on CULane.
-* <font size=3> [2025-05-27] We support GSENet and provide the [model analysis tools](./tools/analysis.py).
-* <font size=3> [2025-05-23] We support GANet, a keypoint-based method, and modulated DCN in mmcv.
-* <font size=3> [2025-05-14] We release v3 version. In this version, we support BezierNet, a parameter-based method.
-* <font size=3> [2025-05-07] We support SRLane, a high-performance model with fast inference speed. Training on the custom dataset is provided in the advanced usage.
-* <font size=3> [2025-04-24] We support distributed training (DDP) and provide the CLRNet-R50 model.
-* <font size=3> [2025-03-12] We release the v2 version. In this version, we add the VIL100 dataset and the ADNet-VIL100 model and provide the [fps testing tool](./tools/test_speed.py). In the future, we will add O2SFormer, keypoint-based methods, and parameter-based methods. Stay tuned.
-* <font size=3> [2025-03-04] We release the [Timm library wrapper](unlanedet/model/module/backbone/timm_wrapper.py)! Users can directly transfer the advanced backbone to UnLanedet. In the following weeks, we will release the v2 version.
-* <font size=3> [2024-11-10] We release ADNet and LaneATT. Try it!
-* <font size=3> [2024-11-07] We release CondLaneNet and CLRerNet and fix bugs in UnLanedet. Try it!
-* <font size=3> [2024-11-05] We release the v1 version, focusing on 2D lane detection methods.
-
-## Installation
-<font size=3> See [installation instructions](doc/install.md).
-
-## Getting Started
-<font size=3> See [Get Started documentation](scripts/TRAIN.md), including the data preparation, the training code, the evaluation code, the resume code, the inference code, and the advanced usage.
-
-## Model Zoo and Baselines
-We provide a set of lane detection methods. All models and the corresponding weights and the training logs can be found in the [Model Zoo](doc/model_zpp.md).
-
-## Advantages of UnLanedet
-Compared with other lane detection libraries, e.g., lanedet and PPLanedet, UnLanedet has two obvious advantages: 1) Distributed training is supported. 2) More pretrained models and datasets are provided.
-
-We do not depend on third-party library, such as mmcv series, and all modules and functions can be found in the repo.
-
-## License
-UnLanedet is released under the Apache 2.0 license.
-
-## Contribution
-We appreciate all contributions to UnLanedet and welcome pull requests to improve UnLanedet.
-
-## Acknowledgement
-UnLanedet is built upon [detectron2](https://github.com/facebookresearch/detectron2), [lanedet](https://github.com/Turoad/lanedet) and [PPLanedet](https://github.com/zkyseu/PPlanedet). Many thanks to their great work!
-
-The code of BeizerNet is modified from [mmLaneDet](https://github.com/Yzichen/mmLaneDet). Many thanks to the authors.
-
-Some modules are borrowed from [detrex](https://github.com/IDEA-Research/detrex). Many thanks to the authors.
-
-## Citing UnLanedet
-If you use UnLanedet in your research, please use the following BibTeX entry.
-
-```BibTeX
-@misc{zhouunlanedet,
-  author =       {UnLanedet team},
-  title =        {UnLanedet},
-  howpublished = {\url{https://github.com/zkyntu/UnLanedet}},
-  year =         {2024}
-}
-```
+Apache 2.0 (см. `LICENSE`). Проект основан на [UnLanedet](https://github.com/zkyntu/UnLanedet) (Apache 2.0);
+из него взяты реализация CLRNet, загрузчики данных и инструменты обучения. Изменены файлы UnLanedet:
+`unlanedet/model/CLRNet/clr_head.py` (ускорена постобработка), `unlanedet/data/transform/__init__.py`
+(регистрация погодных аугментаций), `unlanedet/data/build.py` (seed аугментаций в процессах загрузки данных),
+`unlanedet/utils/env.py`, `config/modelzoo.py`, `tools/detect.py` (подгонка размера кадра под конфиг).
