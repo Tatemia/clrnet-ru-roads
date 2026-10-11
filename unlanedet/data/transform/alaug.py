@@ -61,7 +61,7 @@ class Alaug(object):
             for t in transforms:
                 parmas = {}
                 for key, value in t.items():
-                    if key is not 'type':
+                    if key != 'type':
                         if isinstance(value,omegaconf.listconfig.ListConfig):
                             value = tuple(value)
                         parmas[key] = value
@@ -71,7 +71,7 @@ class Alaug(object):
             return getattr(al, 'OneOf')(transforms=choices, p=transform['p'])
         parmas = {}
         for key, value in transform.items():
-            if key is not 'type':
+            if key != 'type':
                 if isinstance(value,omegaconf.listconfig.ListConfig):
                     value = tuple(value)
                 parmas[key] = value        
